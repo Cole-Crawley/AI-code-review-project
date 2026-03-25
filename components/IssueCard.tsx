@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Issue } from '@/types';
 
@@ -20,13 +20,16 @@ const SEVERITY_CONFIG = {
 };
 
 export default function IssueCard({ issue, index, isActive, onClick, onFix, onApplyFix }: IssueCardProps) {
-  const [expanded, setExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const cfg = SEVERITY_CONFIG[issue.severity];
+  const expanded = isActive;
+
+  const confidenceLabel = `${Math.round(issue.confidence)}%`;
+  const confidenceColor =
+    issue.confidence >= 80 ? '#00FF85' : issue.confidence >= 50 ? '#F59E0B' : '#FF0099';
 
   useEffect(() => {
     if (isActive) {
-      setExpanded(true);
       setTimeout(() => {
         cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 80);
@@ -34,8 +37,15 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
   }, [isActive]);
 
   const handleClick = () => {
-    setExpanded(e => !e);
     onClick();
+  };
+
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleClick();
+    }
   };
 
   if (issue.fixed) {
@@ -74,6 +84,11 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, delay: index * 0.04 }}
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${cfg.label}: ${issue.title}`}
+      onKeyDown={handleKeyDown}
       style={{
         borderRadius: '12px',
         border: `1px solid ${isActive ? cfg.color + '55' : cfg.border}`,
@@ -133,6 +148,37 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
           }}>
             {cfg.label}
           </p>
+
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: '9px',
+              fontWeight: 800,
+              color: 'rgba(255,255,255,0.55)',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              padding: '2px 7px',
+              borderRadius: 999,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
+            }}>
+              {issue.category}
+            </span>
+            <span style={{
+              fontSize: '9px',
+              fontWeight: 800,
+              color: confidenceColor,
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid ${confidenceColor}33`,
+              padding: '2px 7px',
+              borderRadius: 999,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
+            }}>
+              {confidenceLabel} confidence
+            </span>
+          </div>
         </div>
 
         <motion.span
@@ -156,6 +202,59 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
           >
             <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+
+              {(issue.category === 'security' || issue.cwe) && (
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                }}>
+                  <p style={{ margin: 0, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.24)' }}>
+                    Security
+                  </p>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+                    {issue.cwe ? `CWE: ${issue.cwe}` : 'Security impact likely'}.
+                  </p>
+                </div>
+              )}
+
+              {issue.evidence?.excerpt && (
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(30,144,255,0.12)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <p style={{ margin: 0, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(30,144,255,0.55)' }}>
+                      Evidence
+                    </p>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-mono)' }}>
+                      from L{issue.line}
+                      {issue.endLine && issue.endLine !== issue.line ? `–${issue.endLine}` : ''}
+                    </span>
+                  </div>
+                  <pre style={{
+                    margin: 0,
+                    padding: '10px 12px',
+                    fontSize: 11,
+                    fontFamily: 'var(--font-mono)',
+                    color: '#E2E8F0',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    lineHeight: 1.6,
+                  }}>
+                    {issue.evidence.excerpt}
+                  </pre>
+                </div>
+              )}
 
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, margin: 0 }}>
                 {issue.description}
@@ -202,7 +301,7 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
                       margin: 0,
                       fontFamily: 'var(--font-mono)',
                     }}>
-                      Suggested fix
+                      Patch preview
                     </p>
                     {onApplyFix && (
                       <button
@@ -237,18 +336,73 @@ export default function IssueCard({ issue, index, isActive, onClick, onFix, onAp
                       </button>
                     )}
                   </div>
-                  <pre style={{
-                    fontSize: '11px',
-                    color: '#1E90FF',
-                    fontFamily: 'var(--font-mono)',
-                    margin: 0,
-                    padding: '10px 12px',
-                    lineHeight: 1.65,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}>
-                    {issue.fixedCode}
-                  </pre>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{
+                        margin: '0 0 6px',
+                        fontSize: 9,
+                        fontWeight: 900,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-mono)',
+                        color: 'rgba(255,255,255,0.22)',
+                      }}>
+                        Before
+                      </p>
+                      <pre style={{
+                        margin: 0,
+                        fontSize: 11,
+                        color: 'rgba(255,255,255,0.55)',
+                        fontFamily: 'var(--font-mono)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.65,
+                      }}>
+                        {issue.beforeCode || '—'}
+                      </pre>
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{
+                        margin: '0 0 6px',
+                        fontSize: 9,
+                        fontWeight: 900,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-mono)',
+                        color: 'rgba(255,255,255,0.22)',
+                      }}>
+                        After
+                      </p>
+                      <pre style={{
+                        margin: 0,
+                        fontSize: 11,
+                        color: '#00FF85',
+                        fontFamily: 'var(--font-mono)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.65,
+                      }}>
+                        {issue.fixedCode}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {issue.testSuggestion && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                }}>
+                  <p style={{ margin: 0, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.22)' }}>
+                    Test idea
+                  </p>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>
+                    {issue.testSuggestion}
+                  </p>
                 </div>
               )}
 
