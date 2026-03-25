@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import IssueCard from '@/components/IssueCard';
 import HealthScore from '@/components/HealthScore';
-import { Issue, ReviewResult } from '@/types';
+import { Issue, ReviewResult, type Language } from '@/types';
 import { MonacoEditor } from '@/components/CodeEditor';
 
 const CodeEditor = dynamic(() => import('@/components/CodeEditor'), { ssr: false });
@@ -46,7 +46,7 @@ function stripTypes(src: string): string {
 }
 
 // ─── Console Panel (inlined) ──────────────────────────────────────────────────
-function ConsolePanel({ code, language, isOpen, onToggle }: {
+function LegacyConsolePanel({ code, language, isOpen, onToggle }: {
   code: string;
   language: string;
   isOpen: boolean;
@@ -238,33 +238,74 @@ function ConsolePanel({ code, language, isOpen, onToggle }: {
 function ReviewPageInner() {
   const router = useRouter();
   const [code,        setCode]        = useState('');
-  const [language,    setLanguage]    = useState('typescript');
+  const [language,    setLanguage]    = useState<Language>('typescript');
   const [filename,    setFilename]    = useState('');
   const [result,      setResult]      = useState<ReviewResult | null>(null);
   const [issues,      setIssues]      = useState<Issue[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
   const [activeId,    setActiveId]    = useState<string | null>(null);
-  const [consoleOpen, setConsoleOpen] = useState(true);
+  const [copied,     setCopied]      = useState(false);
 
   const editorApiRef = useRef<MonacoEditor | null>(null);
+
+  const extByLanguage: Record<Language, string> = {
+    typescript: 'ts',
+    javascript: 'js',
+    python: 'py',
+    cpp: 'cpp',
+    csharp: 'cs',
+    java: 'java',
+  };
+
+  const allowedLanguages = new Set<Language>(['typescript', 'javascript', 'python', 'cpp', 'csharp', 'java']);
+
+  const copyReport = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Ignore clipboard failures; the UI can still be used normally.
+    }
+  };
 
   useEffect(() => {
     const storedCode = sessionStorage.getItem('reviewCode') || '';
     const storedLang = sessionStorage.getItem('reviewLanguage') || 'typescript';
     const storedFile = sessionStorage.getItem('reviewFilename') || '';
     if (!storedCode) { router.push('/'); return; }
+
+    const reviewLang = allowedLanguages.has(storedLang as Language)
+      ? (storedLang as Language)
+      : 'typescript';
     setCode(storedCode);
-    setLanguage(storedLang);
+    setLanguage(reviewLang);
     setFilename(storedFile);
     const runReview = async () => {
       try {
-        const res  = await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: storedCode, language: storedLang }) });
+        const res  = await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: storedCode, language: reviewLang }) });
         const data: ReviewResult = await res.json();
         if (!res.ok) { setError((data as { message?: string }).message || 'Review failed.'); return; }
-        const withIds = { ...data, issues: data.issues.map((issue, i) => ({ ...issue, id: issue.id || String(i + 1) })) };
-        setResult(withIds);
-        setIssues(withIds.issues);
+
+        const srcLines = storedCode.split('\n');
+        const withComputedBeforeCode = {
+          ...data,
+          issues: data.issues.map((issue, i) => {
+            const start = Math.max(1, Math.min(issue.line, srcLines.length || 1));
+            const end = Math.max(start, Math.min(issue.endLine ?? issue.line, srcLines.length || 1));
+            const beforeCode = srcLines.slice(start - 1, end).join('\n');
+            return {
+              ...issue,
+              id: issue.id || String(i + 1),
+              beforeCode,
+            };
+          }),
+        };
+
+        setResult(withComputedBeforeCode);
+        setIssues(withComputedBeforeCode.issues);
       } catch { setError('Something went wrong. Please try again.'); }
       finally { setLoading(false); }
     };
@@ -301,11 +342,26 @@ function ReviewPageInner() {
         <div className="topbar-divider" />
         <div className="topbar-file">
           <span className="file-dot" />
-          <span className="file-name">{filename || `code.${language === 'typescript' ? 'ts' : 'js'}`}</span>
+          <span className="file-name">{filename || `code.${extByLanguage[language]}`}</span>
         </div>
         <div className="topbar-actions">
-          {[{ label: '↩ undo', action: () => editorApiRef.current?.undo() }, { label: '↪ redo', action: () => editorApiRef.current?.redo() }].map(({ label, action }) => (
-            <button key={label} onClick={action} className="action-btn">{label}</button>
+          {[
+            { label: '↩ undo', action: () => editorApiRef.current?.undo() },
+            { label: '↪ redo', action: () => editorApiRef.current?.redo() },
+            {
+              label: copied ? '✓ copied' : '⎘ copy report',
+              action: copyReport,
+            },
+          ].map(({ label, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="action-btn"
+              style={label === '⎘ copy report' && !result ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+              disabled={label === '⎘ copy report' && !result}
+            >
+              {label}
+            </button>
           ))}
         </div>
         {!loading && result && (
@@ -355,14 +411,6 @@ function ReviewPageInner() {
               onEditorReady={(api) => { editorApiRef.current = api; }}
             />
           </div>
-
-          {/* Console panel — sits below Monaco */}
-          <ConsolePanel
-            code={code}
-            language={language}
-            isOpen={consoleOpen}
-            onToggle={() => setConsoleOpen(o => !o)}
-          />
         </div>
 
         {/* Sidebar */}
@@ -373,6 +421,52 @@ function ReviewPageInner() {
             <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
               <p className="section-label">Summary</p>
               <p style={{ fontSize: 13, fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, margin: 0 }}>{result.summary}</p>
+            </div>
+          )}
+
+          {result?.securitySummary && (
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <p className="section-label">Security</p>
+              <p style={{ fontSize: 13, fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+                {result.securitySummary}
+              </p>
+            </div>
+          )}
+
+          {result?.refactorPlan && (
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <p className="section-label">Refactor plan</p>
+              <p style={{ fontSize: 13, fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+                {result.refactorPlan}
+              </p>
+            </div>
+          )}
+
+          {(result?.testFramework || result?.generatedTests) && (
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <p className="section-label">Tests</p>
+              <p style={{ fontSize: 13, fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, margin: 0 }}>
+                {result.testFramework ? `Framework: ${result.testFramework}` : 'Suggested test coverage'}.
+              </p>
+              {result.generatedTests && result.generatedTests.trim().length > 0 && (
+                <pre style={{
+                  margin: '10px 0 0',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(0,0,0,0.3)',
+                  color: '#E2E8F0',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-mono)',
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  maxHeight: 220,
+                  overflow: 'auto',
+                }}>
+                  {result.generatedTests}
+                </pre>
+              )}
             </div>
           )}
 
@@ -423,7 +517,17 @@ function ReviewPageInner() {
 
           {!loading && result && (
             <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-              <button onClick={() => router.push('/')} className="new-review-btn">⚡ review new code</button>
+              <button
+                onClick={() => {
+                  sessionStorage.removeItem('reviewCode');
+                  sessionStorage.removeItem('reviewLanguage');
+                  sessionStorage.removeItem('reviewFilename');
+                  router.push('/');
+                }}
+                className="new-review-btn"
+              >
+                ⚡ review new code
+              </button>
             </div>
           )}
         </div>

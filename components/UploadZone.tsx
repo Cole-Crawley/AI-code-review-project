@@ -1,29 +1,72 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
+import type { Language } from '@/types';
 
 interface UploadZoneProps {
-  onFileLoad: (code: string, filename: string) => void;
+  onFileLoad: (code: string, filename: string, language: Language) => void;
 }
 
-const ACCEPTED = ['.js', '.jsx', '.ts', '.tsx'];
+const ACCEPTED = [
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.py',
+  '.cpp',
+  '.cc',
+  '.cxx',
+  '.cs',
+  '.java',
+];
+
+function languageFromExtension(ext: string): Language | null {
+  switch (ext) {
+    case '.py':
+      return 'python';
+    case '.cpp':
+    case '.cc':
+    case '.cxx':
+      return 'cpp';
+    case '.cs':
+      return 'csharp';
+    case '.java':
+      return 'java';
+    case '.ts':
+    case '.tsx':
+      return 'typescript';
+    case '.js':
+    case '.jsx':
+      return 'javascript';
+    default:
+      return null;
+  }
+}
 
 export default function UploadZone({ onFileLoad }: UploadZoneProps) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+
+  const openPicker = () => inputRef.current?.click();
 
   const readFile = (file: File) => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!ACCEPTED.includes(ext)) {
-      setError('only .js .jsx .ts .tsx files supported');
+    const detectedLanguage = ext ? languageFromExtension(ext) : null;
+
+    if (!ext || !ACCEPTED.includes(ext) || !detectedLanguage) {
+      setError('only JS/TS, Python, C++, C#, and Java files supported');
       return;
     }
     setError('');
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      onFileLoad(text, file.name);
+      onFileLoad(text, file.name, detectedLanguage);
+    };
+    reader.onerror = () => {
+      setError('failed to read file');
     };
     reader.readAsText(file);
   };
@@ -46,7 +89,18 @@ export default function UploadZone({ onFileLoad }: UploadZoneProps) {
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={openPicker}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a code file (JS/TS/Python/C++/C#/Java)"
+        aria-invalid={!!error}
+        aria-describedby={error ? errorId : undefined}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openPicker();
+          }
+        }}
         style={{
           border: `1.5px dashed ${dragging ? 'rgba(0,255,133,0.5)' : 'rgba(255,255,255,0.08)'}`,
           borderRadius: '12px',
@@ -88,7 +142,7 @@ export default function UploadZone({ onFileLoad }: UploadZoneProps) {
         <input
           ref={inputRef}
           type="file"
-          accept=".js,.jsx,.ts,.tsx"
+          accept=".js,.jsx,.ts,.tsx,.py,.cpp,.cc,.cxx,.cs,.java"
           onChange={handleChange}
           style={{ display: 'none' }}
         />
@@ -100,7 +154,7 @@ export default function UploadZone({ onFileLoad }: UploadZoneProps) {
           marginTop: '6px',
           padding: '0 4px',
           fontFamily: 'var(--font-mono)',
-        }}>
+        }} id={errorId} aria-live="polite">
           {error}
         </p>
       )}

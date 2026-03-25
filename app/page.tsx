@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import UploadZone from '@/components/UploadZone';
+import type { Language } from '@/types';
 
-const SAMPLE_JS = `// ⚠ Several bugs lurking here — hit ▶ run to see them
+const SAMPLE_BY_LANGUAGE: Record<Language, { code: string; filename: string }> = {
+  javascript: {
+    code: `// ⚠ Several bugs lurking here — hit review to see them
 
 const users = [
   { id: 1, name: "  Alice ", role: "admin", score: 95 },
@@ -35,26 +38,11 @@ function promoteToAdmin(user) {
 function getTopUser(users) {
   const sorted = users.sort((a, b) => b.score - a.score);
   return sorted[0];
-}
-
-try {
-  const processed = processUsers(users);
-  console.log("Processed:", JSON.stringify(processed));
-} catch (e) {
-  console.error("processUsers crashed:", e.message);
-}
-
-const bob = users[1];
-promoteToAdmin(bob);
-console.log("Bob role after promote:", bob.role);
-console.log("Original array mutated:", users[1].role);
-
-const top = getTopUser(users);
-console.log("Top user:", JSON.stringify(top));
-console.log("Array order after sort:", JSON.stringify(users.map(u => u.name.trim())));
-`;
-
-const SAMPLE_TS = `// ⚠ TypeScript bugs lurking here — hit ▶ run to see them
+}`,
+    filename: 'example.js',
+  },
+  typescript: {
+    code: `// ⚠ TypeScript bugs lurking here — hit review to see them
 
 interface User {
   id: number;
@@ -69,7 +57,7 @@ const users: User[] = [
   { id: 3, name: " Carol",   role: "user",  score: 88 },
 ];
 
-// Bug 1: return type lie — says string but can return undefined
+// Bug 1: return type lie — says string but can crash via non-null assertion
 function getRole(id: number): string {
   const user = users.find(u => u.id === id);
   return user!.role; // non-null assertion hides the risk
@@ -86,33 +74,148 @@ function normalizeNames(users: User[]): User[] {
     users[i].name = users[i].name.trim(); // mutates original
   }
   return users;
+}`,
+    filename: 'example.ts',
+  },
+  python: {
+    code: `# ⚠ Python bugs lurking here — hit review to see them
+
+users = [
+  { "id": 1, "name": "  Alice ", "role": "admin", "score": 95 },
+  { "id": 2, "name": "Bob",      "role": "user",  "score": 72 },
+  { "id": 3, "name": " Carol",   "role": "user",  "score": 88 },
+]
+
+def process_users(users):
+  results = []
+  # Bug: off-by-one — iterates one past the end
+  for i in range(0, len(users) + 1):
+    results.append({ "id": users[i]["id"], "name": users[i]["name"].strip() })
+  return results
+
+def promote_to_admin(user):
+  # Bug: mutates caller-provided dict
+  if user["role"] == "user":
+    user["role"] = "admin"
+    return True
+  return False
+`,
+    filename: 'example.py',
+  },
+  cpp: {
+    code: `// ⚠ C++ issues lurking here — hit review to see them
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+
+struct User {
+  int id;
+  std::string name;
+  std::string role;
+  int score;
+};
+
+int getTopUser(std::vector<User>& users) {
+  // Bug: accidental out-of-bounds access
+  users.push_back(users[users.size()]);
+
+  std::sort(users.begin(), users.end(),
+            [](const User& a, const User& b) { return b.score < a.score; });
+
+  return users[0].id;
+}
+`,
+    filename: 'example.cpp',
+  },
+  csharp: {
+    code: `// ⚠ C# issues lurking here — hit review to see them
+using System;
+using System.Collections.Generic;
+
+class User {
+  public int Id;
+  public string Role;
+  public int Score;
 }
 
-try {
-  const role = getRole(99); // id 99 doesn't exist — crashes
-  console.log("Role:", role);
-} catch (e) {
-  console.error("getRole crashed:", e.message);
+class Program {
+  static string GetRole(List<User> users, int id) {
+    var user = users.Find(u => u.Id == id);
+    // Bug: possible NullReferenceException when user isn't found
+    return user.Role;
+  }
+}
+`,
+    filename: 'example.cs',
+  },
+  java: {
+    code: `// ⚠ Java issues lurking here — hit review to see them
+import java.util.*;
+
+class User {
+  public int id;
+  public String role;
+  public int score;
 }
 
-const patched = mergeUser(users[0], { score: "not-a-number", role: "superadmin" });
-console.log("Patched user:", JSON.stringify(patched));
-console.log("score is now:", typeof patched.score, patched.score);
+public class Review {
+  static String getRole(List<User> users, int id) {
+    User u = users.stream().filter(x -> x.id == id).findFirst().orElse(null);
+    // Bug: possible NullPointerException
+    return u.role;
+  }
 
-const before = users[0].name;
-normalizeNames(users);
-console.log("Before normalize:", JSON.stringify(before));
-console.log("Original mutated:", JSON.stringify(users[0].name));
-`;
+  static User getTopUser(List<User> users) {
+    users.sort((a, b) -> b.score - a.score);
+    return users.get(0);
+  }
+}
+`,
+    filename: 'example.java',
+  },
+};
+
+const LANGUAGE_LABEL: Record<Language, string> = {
+  typescript: 'TS',
+  javascript: 'JS',
+  python: 'PY',
+  cpp: 'C++',
+  csharp: 'C#',
+  java: 'Java',
+};
+
+const ALL_LANGUAGES = Object.keys(SAMPLE_BY_LANGUAGE) as Language[];
+const SAMPLE_CODES = new Set(ALL_LANGUAGES.map(l => SAMPLE_BY_LANGUAGE[l].code));
 
 export default function HomePage() {
   const [code, setCode]         = useState('');
   const [filename, setFilename] = useState('');
-  const [language, setLanguage] = useState<'typescript' | 'javascript'>('typescript');
-  const languageRef = useRef<'typescript' | 'javascript'>('typescript');
-  const setLang = (l: 'typescript' | 'javascript') => { languageRef.current = l; setLanguage(l); };
+  const [language, setLanguage] = useState<Language>('typescript');
+  const languageRef = useRef<Language>('typescript');
+  const setLang = (l: Language) => { languageRef.current = l; setLanguage(l); };
   const [loading, setLoading]   = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const storedCode = sessionStorage.getItem('reviewCode') || '';
+    const storedLang = sessionStorage.getItem('reviewLanguage') || 'typescript';
+    const storedFile = sessionStorage.getItem('reviewFilename') || '';
+
+    if (!storedCode) return;
+
+    if (ALL_LANGUAGES.includes(storedLang as Language)) {
+      setLang(storedLang as Language);
+    }
+    setFilename(storedFile);
+    setCode(storedCode);
+  }, []);
+
+  const clearStoredReview = () => {
+    sessionStorage.removeItem('reviewCode');
+    sessionStorage.removeItem('reviewLanguage');
+    sessionStorage.removeItem('reviewFilename');
+  };
 
   const handleReview = async () => {
     if (!code.trim()) return;
@@ -125,13 +228,9 @@ export default function HomePage() {
 
   const handleSampleCode = () => {
     const target = languageRef.current;
-    if (target === 'typescript') {
-      setCode(SAMPLE_TS);
-      setFilename('example.ts');
-    } else {
-      setCode(SAMPLE_JS);
-      setFilename('example.js');
-    }
+    const sample = SAMPLE_BY_LANGUAGE[target];
+    setCode(sample.code);
+    setFilename(sample.filename);
   };
 
   const lineCount = code.split('\n').length;
@@ -182,7 +281,7 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.25 }}
           >
-            Drop your JS or TS. Get instant line-by-line feedback on bugs,
+            Drop your code in major languages. Get instant line-by-line feedback on bugs,
             security holes, and bad habits — no judgement (well, a little).
           </motion.p>
         </motion.header>
@@ -195,18 +294,18 @@ export default function HomePage() {
         >
           <div className="toolbar">
             <div className="lang-pills">
-              {(['typescript', 'javascript'] as const).map(lang => (
+              {ALL_LANGUAGES.map(lang => (
                 <button
                   key={lang}
                   onClick={() => {
                     setLang(lang);
-                    if (code === SAMPLE_JS || code === SAMPLE_TS) {
+                    if (SAMPLE_CODES.has(code)) {
                       handleSampleCode();
                     }
                   }}
                   className={`lang-pill ${language === lang ? 'lang-pill-active' : ''}`}
                 >
-                  {lang === 'typescript' ? 'TS' : 'JS'}
+                  {LANGUAGE_LABEL[lang]}
                 </button>
               ))}
             </div>
@@ -218,18 +317,35 @@ export default function HomePage() {
             <textarea
               value={code}
               onChange={e => setCode(e.target.value)}
-              placeholder={`// paste your ${language === 'typescript' ? 'TypeScript' : 'JavaScript'} here...`}
+              placeholder={`// paste your ${language === 'cpp' ? 'C++' : language === 'csharp' ? 'C#' : language === 'typescript' ? 'TypeScript' : language === 'javascript' ? 'JavaScript' : language[0].toUpperCase() + language.slice(1)} here...`}
               spellCheck={false}
               className="code-textarea"
             />
             <div className="editor-footer">
               <span className="editor-stats">{lineCount} lines · {charCount} chars</span>
-              {code && <button onClick={() => setCode('')} className="clear-btn">clear ×</button>}
+              {code && (
+                <button
+                  onClick={() => {
+                    setCode('');
+                    setFilename('');
+                    clearStoredReview();
+                  }}
+                  className="clear-btn"
+                >
+                  clear ×
+                </button>
+              )}
             </div>
           </div>
 
           <div style={{ marginTop: '10px' }}>
-            <UploadZone onFileLoad={(content, fname) => { setCode(content); setFilename(fname); }} />
+            <UploadZone
+              onFileLoad={(content, fname, detectedLang) => {
+                setCode(content);
+                setFilename(fname);
+                setLang(detectedLang);
+              }}
+            />
           </div>
 
           <div className="cta-row">

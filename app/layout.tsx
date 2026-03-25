@@ -30,11 +30,11 @@ const mono = Kode_Mono({
 
 export const metadata: Metadata = {
   title: 'CodeRev — AI Code Review',
-  description: 'Instant AI-powered code review for JavaScript and TypeScript. Get line-by-line feedback on bugs, security issues, and best practices.',
-  keywords: ['code review', 'AI', 'TypeScript', 'JavaScript', 'linting', 'static analysis'],
+  description: 'Instant AI-powered code review for TypeScript/JavaScript, Python, C++, C#, and Java. Get line-by-line feedback on bugs, security issues, and best practices.',
+  keywords: ['code review', 'AI', 'TypeScript', 'JavaScript', 'Python', 'C++', 'C#', 'Java', 'linting', 'static analysis'],
   openGraph: {
     title: 'CodeRev — AI Code Review',
-    description: 'Instant AI-powered code review for JavaScript and TypeScript.',
+    description: 'Instant AI-powered code review for multiple languages.',
     type: 'website',
   },
 };
