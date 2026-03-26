@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Issue } from '@/types';
+import type { Issue, Language } from '@/types';
 
 interface CodeEditorProps {
   code: string;
-  language: string;
+  language: Language | string;
   issues: Issue[];
   activeIssueId: string | null;
   onChange: (value: string) => void;
@@ -27,6 +27,25 @@ const SEVERITY_COLORS = {
   warning:    { squiggle: 'rgba(245,158,11,0.9)',  glyph: '#F59E0B' },
   suggestion: { squiggle: 'rgba(30,144,255,0.8)',  glyph: '#1E90FF' },
 };
+
+function toMonacoLanguageId(language: string): string {
+  switch (language) {
+    case 'typescript':
+      return 'typescript';
+    case 'javascript':
+      return 'javascript';
+    case 'python':
+      return 'python';
+    case 'cpp':
+      return 'cpp';
+    case 'csharp':
+      return 'csharp';
+    case 'java':
+      return 'java';
+    default:
+      return 'plaintext';
+  }
+}
 
 export default function CodeEditor({
   code,
@@ -88,7 +107,7 @@ export default function CodeEditor({
 
       editorRef.current = monaco.editor.create(containerRef.current!, {
         value: code,
-        language: language === 'typescript' ? 'typescript' : 'javascript',
+        language: toMonacoLanguageId(language),
         theme: 'coderev-neon',
         fontSize: 13,
         fontFamily: 'var(--font-mono), "Kode Mono", "JetBrains Mono", monospace',
@@ -139,9 +158,18 @@ export default function CodeEditor({
             const indentMatch  = lineContent.match(/^(\s*)/);
             const indent       = indentMatch ? indentMatch[1] : '';
 
-            const indentedFix = fixedCode
-              .split('\n')
-              .map((l, i) => i === 0 ? indent + l.trimStart() : indent + l.trimStart())
+            const fixedLines = fixedCode.split('\n');
+            const nonEmpty = fixedLines.filter(l => l.trim().length > 0);
+            const minIndent = nonEmpty.length === 0
+              ? 0
+              : Math.min(...nonEmpty.map(l => (l.match(/^[\t ]*/)?.[0].length ?? 0)));
+
+            // Preserve relative indentation inside the snippet.
+            const indentedFix = fixedLines
+              .map((l) => {
+                if (l.trim().length === 0) return l;
+                return indent + l.slice(minIndent);
+              })
               .join('\n');
 
             editorRef.current.executeEdits('apply-fix', [{
