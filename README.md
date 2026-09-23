@@ -120,10 +120,4 @@ After applying a fix, the code changes, the test re-runs and the grade goes up:
 
 ![After a fix](docs/codemarker-fixed.webp)
 
----
-
-## A note on how it was built
-
-The build was heavily AI-assisted, and I'm not claiming otherwise. The concept, the visual design, the writing and every decision about how it should work were mine.
-
 *Made by [Cole Crawley](https://colecrawley.vercel.app).*
