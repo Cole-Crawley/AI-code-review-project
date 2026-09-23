@@ -1,34 +1,75 @@
-*, *::before, *::after {
-  box-sizing: border-box;
+/* CodeMarker: code handed in on paper, marked in red pen. */
+
+:root {
+  --desk:    #EDE8DD;   /* the surface the paper sits on */
+  --paper:   #FBF9F4;   /* the answer sheet */
+  --rule:    #E6E0D3;   /* ruled lines */
+  --margin:  #EBB4B4;   /* the exam margin line */
+  --ink:     #1D1C1A;
+  --ink-2:   #57534B;
+  --ink-3:   #948F84;
+  --line:    #DCD5C6;
+
+  --red:     #C8102E;   /* errors, and the examiner's pen */
+  --red-soft: rgba(200, 16, 46, 0.08);
+  --pencil:  #B5651D;   /* warnings */
+  --pencil-soft: rgba(181, 101, 29, 0.09);
+  --blue:    #2F5BB7;   /* suggestions */
+  --blue-soft: rgba(47, 91, 183, 0.08);
+  --tick:    #2F7A4F;   /* fixed */
+
+  --radius: 6px;
+  --shadow-sheet: 0 1px 2px rgba(29, 28, 26, 0.06), 0 12px 32px rgba(29, 28, 26, 0.07);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  background: #0D0D0D;
-  color: #FFFFFF;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar — thin and neon-tinted */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::selection { background: var(--red-soft); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(0,255,133,0.15);
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0,255,133,0.3);
-}
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: padding-box; }
+
+/* Handwritten margin note */
+.pen { font-family: var(--font-pen), cursive; color: var(--red); font-size: 20px; line-height: 1; }
 
 /* Monaco editor container */
-.monaco-editor .overflow-guard {
-  border-radius: 0 !important;
+.monaco-editor .overflow-guard { border-radius: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* Selection */
-::selection {
-  background: rgba(0,255,133,0.2);
-  color: #FFFFFF;
+/* Quiet hover tips: a short line explaining what an action does. Appear after a
+   brief pause so they don't flicker as the pointer passes over. */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; top: calc(100% + 8px); z-index: 60;
+  width: max-content; max-width: 240px; padding: 6px 9px; border-radius: 4px;
+  background: var(--ink); color: var(--paper);
+  font: 400 12px/1.4 var(--font-sans); text-align: left; white-space: normal; letter-spacing: 0;
+  text-decoration: none; opacity: 0; pointer-events: none;
+  transform: translate(-50%, -3px);
+  transition: opacity .15s ease, transform .15s ease;
 }
+[data-tip]:hover::after, [data-tip]:focus-visible::after {
+  opacity: 1; transform: translate(-50%, 0); transition-delay: .45s;
+}
+[data-tip-align="end"]::after { left: auto; right: 0; transform: translate(0, -3px); }
+[data-tip-align="end"]:hover::after, [data-tip-align="end"]:focus-visible::after { transform: translate(0, 0); }
+[data-tip-pos="up"]::after { top: auto; bottom: calc(100% + 8px); }
+@media (hover: none) { [data-tip]::after { display: none; } }

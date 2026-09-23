@@ -18,7 +18,7 @@ interface ConsolePanelProps {
 }
 
 // Strips TypeScript type annotations so we can eval the result as plain JS.
-// Not a full compiler — handles the common patterns the AI tends to emit.
+// Not a full compiler; it handles the common patterns the AI tends to emit.
 function stripTypes(src: string): string {
   return src
     // Remove import statements entirely
@@ -72,7 +72,7 @@ export default function ConsolePanel({ code, language, isOpen, onToggle }: Conso
 
     const js = language === 'typescript' ? stripTypes(code) : code;
 
-    // The iframe sandbox — no network, no same-origin, intercepts console.*
+    // The iframe sandbox: no network, no same-origin, intercepts console.*
     const html = `<!DOCTYPE html><html><head></head><body><script>
       const _post = (type, args) => {
         const safe = args.map(a => {

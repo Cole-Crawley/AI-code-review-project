@@ -70,11 +70,11 @@ export default function UploadZone({ onFileLoad, onFilesLoad, multiple = false }
     }
 
     if (valid.length === 0) {
-      setError('only JS/TS, Python, C++, C#, and Java files supported');
+      setError("That file type isn't supported. Use JS, TS, Python, C++, C# or Java.");
       return;
     }
     if (rejected.length > 0) {
-      setError(`skipped unsupported: ${rejected.join(', ')}`);
+      setError(`Skipped ${rejected.join(', ')}: file type not supported.`);
     }
 
     try {
@@ -93,7 +93,7 @@ export default function UploadZone({ onFileLoad, onFilesLoad, multiple = false }
         onFileLoad(f.code, f.filename, f.language);
       }
     } catch {
-      setError('failed to read file(s)');
+      setError("Couldn't read that file. Try saving it as plain text.");
     }
   };
 
@@ -121,39 +121,19 @@ export default function UploadZone({ onFileLoad, onFilesLoad, multiple = false }
         role="button"
         tabIndex={0}
         aria-label={multiple
-          ? 'Upload code files (JS/TS/Python/C++/C#/Java) — multiple allowed'
+          ? 'Upload code files: JS, TS, Python, C++, C# or Java. Several are allowed.'
           : 'Upload a code file (JS/TS/Python/C++/C#/Java)'}
         aria-invalid={!!error}
         aria-describedby={error ? errorId : undefined}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); }
         }}
-        style={{
-          border: `1.5px dashed ${dragging ? 'rgba(0,255,133,0.5)' : 'rgba(255,255,255,0.08)'}`,
-          borderRadius: '12px',
-          padding: '16px 20px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          background: dragging ? 'rgba(0,255,133,0.04)' : 'transparent',
-          transition: 'all 0.15s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
-          boxShadow: dragging ? '0 0 20px rgba(0,255,133,0.08)' : 'none',
-        }}
+        className={`drop ${dragging ? 'is-dragging' : ''}`}
       >
-        <span style={{ fontSize: '14px', opacity: dragging ? 1 : 0.4, transition: 'opacity 0.15s', color: dragging ? '#00FF85' : '#FFFFFF' }}>↑</span>
-        <div>
-          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0, fontFamily: 'var(--font-mono)' }}>
-            {multiple ? 'drop files or ' : 'drop a file or '}
-            <span style={{ color: '#1E90FF', textDecoration: 'underline' }}>browse</span>
-            {multiple && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · multiple OK</span>}
-          </p>
-          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', margin: '3px 0 0', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
-            .js .jsx .ts .tsx .py .cpp .cs .java
-          </p>
-        </div>
+        <p className="drop-text">
+          {dragging ? 'Drop to add' : <>Drop {multiple ? 'files' : 'a file'} here or <span className="drop-link">choose {multiple ? 'files' : 'one'}</span></>}
+        </p>
+        <p className="drop-sub">JS, TS, Python, C++, C# or Java{multiple ? ', up to 8 files' : ''}</p>
         <input
           ref={inputRef}
           type="file"
@@ -164,11 +144,20 @@ export default function UploadZone({ onFileLoad, onFilesLoad, multiple = false }
         />
       </div>
       {error && (
-        <p style={{ fontSize: '11px', color: '#FF0099', marginTop: '6px', padding: '0 4px', fontFamily: 'var(--font-mono)' }}
-           id={errorId} aria-live="polite">
+        <p className="drop-error" id={errorId} aria-live="polite">
           {error}
         </p>
       )}
+      <style>{`
+        .drop { margin-top: 10px; padding: 14px 18px; border: 1px dashed var(--line); border-radius: 4px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+        .drop:hover { border-color: var(--ink-3); }
+        .drop.is-dragging { border-color: var(--red); background: var(--red-soft); }
+        .drop-text { margin: 0; font: 14px var(--font-sans); color: var(--ink-2); }
+        .drop-link { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+        .drop:hover .drop-link { text-decoration-color: var(--red); }
+        .drop-sub { margin: 4px 0 0; font: 12px var(--font-sans); color: var(--ink-3); }
+        .drop-error { margin: 8px 2px 0; font: 13px var(--font-sans); color: var(--red); }
+      `}</style>
     </div>
   );
 }

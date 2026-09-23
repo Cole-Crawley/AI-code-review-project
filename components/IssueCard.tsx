@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Issue } from '@/types';
+import type { Issue, CheckResult } from '@/types';
 
 interface IssueCardProps {
   issue: Issue;
@@ -11,432 +11,143 @@ interface IssueCardProps {
   onClick: () => void;
   onFix: () => void;
   onApplyFix?: (issue: Issue, fixedCode: string) => void;
+  // Whether this language can run in Scratch work (JS, TS, Python)
+  runnable?: boolean;
+  // The result of this correction's test from the last run
+  checkResult?: CheckResult;
 }
 
-const SEVERITY_CONFIG = {
-  error:      { color: '#FF0099', bg: 'rgba(255,0,153,0.07)',   border: 'rgba(255,0,153,0.2)',   label: 'Error',      icon: '✕' },
-  warning:    { color: '#F59E0B', bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.2)',  label: 'Warning',    icon: '!' },
-  suggestion: { color: '#1E90FF', bg: 'rgba(30,144,255,0.07)',  border: 'rgba(30,144,255,0.2)',  label: 'Suggestion', icon: '→' },
-};
+// A small pen mark: a tick when the test passes, a cross when it still fails
+function ResultMark({ result }: { result?: CheckResult }) {
+  if (!result) return null;
+  return result.status === 'pass'
+    ? <svg className="r-mark r-pass" viewBox="0 0 24 24" aria-label="Fixed"><path d="M4 13l5 5L20 6" /></svg>
+    : <svg className="r-mark r-fail" viewBox="0 0 24 24" aria-label="Still happening"><path d="M6 6l12 12M18 6L6 18" /></svg>;
+}
 
-export default function IssueCard({ issue, index, isActive, onClick, onFix, onApplyFix }: IssueCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const cfg = SEVERITY_CONFIG[issue.severity];
-  const expanded = isActive;
+// A correction on the marking sheet. Collapsed it's just the line and the problem;
+// opening it shows the explanation, the offending code and the fix.
+export default function IssueCard({ issue, index, isActive, onClick, onFix, onApplyFix, runnable = false, checkResult }: IssueCardProps) {
+  const hasFixedCode = !!issue.fixedCode;
+  const test = (issue.check ?? '').trim();
+  const [copied, setCopied] = useState(false);
 
-  const confidenceLabel = `${Math.round(issue.confidence)}%`;
-  const confidenceColor =
-    issue.confidence >= 80 ? '#00FF85' : issue.confidence >= 50 ? '#F59E0B' : '#FF0099';
-
-  useEffect(() => {
-    if (isActive) {
-      setTimeout(() => {
-        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 80);
-    }
-  }, [isActive]);
-
-  const handleClick = () => {
-    onClick();
-  };
-
-  const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      handleClick();
-    }
+  const copyTest = async () => {
+    try { await navigator.clipboard.writeText(test); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* ignore */ }
   };
 
   if (issue.fixed) {
     return (
-      <motion.div
-        initial={{ opacity: 1 }}
-        animate={{ opacity: 0.4 }}
-        style={{
-          padding: '10px 12px',
-          borderRadius: '10px',
-          border: '1px solid rgba(0,255,133,0.15)',
-          background: 'rgba(0,255,133,0.03)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <span style={{ fontSize: '11px', color: '#00FF85', fontWeight: 700 }}>✓</span>
-        <span style={{
-          fontSize: '12px',
-          color: 'rgba(255,255,255,0.25)',
-          textDecoration: 'line-through',
-          fontFamily: 'var(--font-mono)',
-        }}>
-          {issue.title}
-        </span>
-      </motion.div>
+      <div className="correction is-fixed">
+        <span className="line-mark">{issue.line}</span>
+        <p className="c-title">{issue.title}</p>
+        {checkResult ? <ResultMark result={checkResult} /> : <svg className="tick" viewBox="0 0 24 24" aria-label="Fixed"><path d="M3 13.5l5.5 5L21 5" /></svg>}
+        <style jsx global>{styles}</style>
+      </div>
     );
   }
 
   return (
     <motion.div
-      ref={cardRef}
-      layout
-      initial={{ opacity: 0, x: 16 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.04 }}
-      onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
-      aria-label={`${cfg.label}: ${issue.title}`}
-      onKeyDown={handleKeyDown}
-      style={{
-        borderRadius: '12px',
-        border: `1px solid ${isActive ? cfg.color + '55' : cfg.border}`,
-        background: isActive ? cfg.bg : 'rgba(255,255,255,0.02)',
-        cursor: 'pointer',
-        overflow: 'hidden',
-        transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
-        boxShadow: isActive ? `0 0 20px ${cfg.color}18` : 'none',
-      }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+      className={`correction sev-${issue.severity} ${isActive ? 'is-open' : ''}`}
     >
-      {/* Header */}
-      <div style={{ padding: '11px 12px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <div style={{
-          width: '20px', height: '20px', borderRadius: '6px',
-          background: cfg.bg,
-          border: `1px solid ${cfg.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0, marginTop: '1px',
-          boxShadow: isActive ? `0 0 10px ${cfg.color}30` : 'none',
-        }}>
-          <span style={{ fontSize: '9px', color: cfg.color, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-            {cfg.icon}
-          </span>
-        </div>
+      <button className="c-head" onClick={onClick} aria-expanded={isActive}>
+        <span className="line-mark" title={`Line ${issue.line}`}>{issue.line}</span>
+        <span className="c-title">{issue.title}</span>
+        <ResultMark result={checkResult} />
+      </button>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
-            <p style={{
-              fontSize: '12px', fontWeight: 600,
-              color: 'rgba(255,255,255,0.88)',
-              margin: 0, lineHeight: 1.35,
-            }}>
-              {issue.title}
-            </p>
-            <span style={{
-              fontSize: '9px', fontWeight: 700,
-              color: cfg.color,
-              background: cfg.bg,
-              padding: '2px 7px',
-              borderRadius: '100px',
-              flexShrink: 0,
-              letterSpacing: '0.04em',
-              fontFamily: 'var(--font-mono)',
-              border: `1px solid ${cfg.border}`,
-            }}>
-              L{issue.line}{issue.endLine && issue.endLine !== issue.line ? `–${issue.endLine}` : ''}
-            </span>
-          </div>
-          <p style={{
-            fontSize: '10px',
-            color: cfg.color,
-            opacity: 0.6,
-            margin: 0,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            fontFamily: 'var(--font-mono)',
-          }}>
-            {cfg.label}
-          </p>
-
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 800,
-              color: 'rgba(255,255,255,0.55)',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.07)',
-              padding: '2px 7px',
-              borderRadius: 999,
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-            }}>
-              {issue.category}
-            </span>
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 800,
-              color: confidenceColor,
-              background: 'rgba(255,255,255,0.04)',
-              border: `1px solid ${confidenceColor}33`,
-              padding: '2px 7px',
-              borderRadius: 999,
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-            }}>
-              {confidenceLabel} confidence
-            </span>
-          </div>
-        </div>
-
-        <motion.span
-          animate={{ rotate: expanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-          style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', flexShrink: 0, marginTop: '4px' }}
-        >
-          ↓
-        </motion.span>
-      </div>
-
-      {/* Expanded panel */}
       <AnimatePresence initial={false}>
-        {expanded && (
+        {isActive && (
           <motion.div
+            className="c-body"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            style={{ overflow: 'hidden' }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-              {(issue.category === 'security' || issue.cwe) && (
-                <div style={{
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                }}>
-                  <p style={{ margin: 0, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.24)' }}>
-                    Security
-                  </p>
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-                    {issue.cwe ? `CWE: ${issue.cwe}` : 'Security impact likely'}.
-                  </p>
-                </div>
-              )}
-
-              {issue.evidence?.excerpt && (
-                <div style={{
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(30,144,255,0.12)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                }}>
-                  <div style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}>
-                    <p style={{ margin: 0, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(30,144,255,0.55)' }}>
-                      Evidence
-                    </p>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-mono)' }}>
-                      from L{issue.line}
-                      {issue.endLine && issue.endLine !== issue.line ? `–${issue.endLine}` : ''}
-                    </span>
-                  </div>
-                  <pre style={{
-                    margin: 0,
-                    padding: '10px 12px',
-                    fontSize: 11,
-                    fontFamily: 'var(--font-mono)',
-                    color: '#E2E8F0',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    lineHeight: 1.6,
-                  }}>
-                    {issue.evidence.excerpt}
-                  </pre>
-                </div>
-              )}
-
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, margin: 0 }}>
-                {issue.description}
-              </p>
-
-              <div style={{
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '8px',
-                padding: '10px 12px',
-              }}>
-                <p style={{
-                  fontSize: '9px', fontWeight: 800,
-                  color: 'rgba(255,255,255,0.22)',
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  margin: '0 0 6px',
-                  fontFamily: 'var(--font-mono)',
-                }}>
-                  How to fix
+            <p className="c-desc">{issue.description}</p>
+            {issue.evidence?.excerpt && <pre className="c-code">{issue.evidence.excerpt}</pre>}
+            <p className="c-fix"><span className="pen">fix:</span> {issue.fix}</p>
+            {test && runnable && (
+              <div className="c-test">
+                <p className="c-test-head">
+                  <span className="pen">test:</span>
+                  <span className="c-test-state">
+                    {!checkResult ? 'Pick A in Scratch work to run it.' : checkResult.status === 'pass' ? 'Fixed.' : `Still happening${checkResult.note ? ` (${checkResult.note})` : '.'}`}
+                  </span>
                 </p>
-                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.65, margin: 0 }}>
-                  {issue.fix}
-                </p>
+                <code className="c-test-code">{test}</code>
               </div>
-
-              {issue.fixedCode && (
-                <div style={{
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(0,255,133,0.12)',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                }}>
-                  <div style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  }}>
-                    <p style={{
-                      fontSize: '9px', fontWeight: 800,
-                      color: 'rgba(255,255,255,0.22)',
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      margin: 0,
-                      fontFamily: 'var(--font-mono)',
-                    }}>
-                      Patch preview
-                    </p>
-                    {onApplyFix && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onApplyFix(issue, issue.fixedCode!);
-                          onFix();
-                        }}
-                        style={{
-                          fontSize: '10px', fontWeight: 800,
-                          color: '#0D0D0D',
-                          background: '#00FF85',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '4px 10px',
-                          cursor: 'pointer',
-                          fontFamily: 'var(--font-mono)',
-                          letterSpacing: '0.03em',
-                          transition: 'all 0.15s',
-                          boxShadow: '0 0 12px rgba(0,255,133,0.3)',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.boxShadow = '0 0 20px rgba(0,255,133,0.5)';
-                          e.currentTarget.style.transform = 'scale(1.03)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.boxShadow = '0 0 12px rgba(0,255,133,0.3)';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                      >
-                        ⚡ apply
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 12 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{
-                        margin: '0 0 6px',
-                        fontSize: 9,
-                        fontWeight: 900,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        fontFamily: 'var(--font-mono)',
-                        color: 'rgba(255,255,255,0.22)',
-                      }}>
-                        Before
-                      </p>
-                      <pre style={{
-                        margin: 0,
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,0.55)',
-                        fontFamily: 'var(--font-mono)',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        lineHeight: 1.65,
-                      }}>
-                        {issue.beforeCode || '—'}
-                      </pre>
-                    </div>
-
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{
-                        margin: '0 0 6px',
-                        fontSize: 9,
-                        fontWeight: 900,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        fontFamily: 'var(--font-mono)',
-                        color: 'rgba(255,255,255,0.22)',
-                      }}>
-                        After
-                      </p>
-                      <pre style={{
-                        margin: 0,
-                        fontSize: 11,
-                        color: '#00FF85',
-                        fontFamily: 'var(--font-mono)',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        lineHeight: 1.65,
-                      }}>
-                        {issue.fixedCode}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
+            )}
+            {test && !runnable && (
+              <div className="c-test">
+                <p className="c-test-head">
+                  <span className="pen">try it:</span>
+                  <span className="c-test-state">Run this in your project to see the problem, then again after fixing it.</span>
+                </p>
+                <pre className="c-test-code">{test}</pre>
+                <button className="c-done" onClick={(e) => { e.stopPropagation(); copyTest(); }} data-tip="Copy this test to your clipboard">{copied ? 'Copied' : 'Copy test'}</button>
+              </div>
+            )}
+            <div className="c-actions">
+              {hasFixedCode && (
+                <button className="c-apply" onClick={(e) => { e.stopPropagation(); onApplyFix?.(issue, issue.fixedCode!); }} data-tip={runnable && test ? 'Rewrite these lines with the fix, then re-run the test' : 'Rewrite these lines on your paper with the fix'}>
+                  Apply fix
+                </button>
               )}
-
-              {issue.testSuggestion && (
-                <div style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                }}>
-                  <p style={{ margin: 0, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.22)' }}>
-                    Test idea
-                  </p>
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>
-                    {issue.testSuggestion}
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={(e) => { e.stopPropagation(); onFix(); }}
-                style={{
-                  alignSelf: 'flex-start',
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '7px',
-                  padding: '5px 12px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  color: 'rgba(255,255,255,0.28)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '0.03em',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'rgba(0,255,133,0.3)';
-                  e.currentTarget.style.color = '#00FF85';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.28)';
-                }}
-              >
-                ✓ mark as fixed
+              <button className="c-done" onClick={(e) => { e.stopPropagation(); onFix(); }} data-tip="Tick it off without changing your code">
+                Mark as done
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      <style jsx global>{styles}</style>
     </motion.div>
   );
 }
+
+const styles = `
+  .correction { position: relative; border-bottom: 1px solid var(--line); }
+  .correction:last-child { border-bottom: 0; }
+  .c-head { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 2px; background: none; border: 0; text-align: left; cursor: pointer; }
+  .c-head:hover .c-title { color: var(--ink); }
+
+  /* The line number, circled in the severity's pen colour */
+  .line-mark { flex-shrink: 0; display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 4px; border: 1.5px solid currentColor; border-radius: 50%; font: 400 19px var(--font-pen); line-height: 1; transform: rotate(-4deg); }
+  .sev-error .line-mark { color: var(--red); }
+  .sev-warning .line-mark { color: var(--pencil); }
+  .sev-suggestion .line-mark { color: var(--blue); }
+
+  .c-title { margin: 0; padding-top: 4px; font: 400 15px/1.4 var(--font-serif); color: var(--ink-2); transition: color .15s; }
+  .is-open .c-title { color: var(--ink); }
+
+  .c-body { overflow: hidden; padding-left: 40px; }
+  .c-desc { margin: 0 0 10px; font: 14px/1.6 var(--font-sans); color: var(--ink-2); }
+  .c-code { margin: 0 0 10px; padding: 8px 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; font: 13px/1.5 var(--font-mono); color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+  .sev-error .c-code { text-decoration: line-through; text-decoration-color: rgba(200, 16, 46, 0.55); }
+  .c-fix { margin: 0 0 12px; font: 14px/1.6 var(--font-sans); color: var(--ink); }
+  .c-fix .pen { font-size: 19px; margin-right: 2px; }
+  .c-actions { display: flex; gap: 14px; padding-bottom: 14px; }
+  .c-apply { height: 32px; padding: 0 14px; border: 0; border-radius: var(--radius); background: var(--ink); color: var(--paper); font: 600 13px var(--font-sans); cursor: pointer; transition: background .15s; }
+  .c-apply:hover { background: var(--red); }
+  .c-done { background: none; border: 0; padding: 0; font: 500 13px var(--font-sans); color: var(--ink-2); cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+  .c-done:hover { color: var(--ink); text-decoration-color: var(--tick); }
+
+  .is-fixed { display: flex; align-items: flex-start; gap: 12px; padding: 10px 2px; }
+  .is-fixed .line-mark { color: var(--ink-3); }
+  .is-fixed .c-title { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-3); flex: 1; }
+  .c-test { margin: 0 0 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 4px; }
+  .c-test-head { display: flex; align-items: baseline; gap: 6px; margin: 0 0 6px; font: 13px/1.5 var(--font-sans); color: var(--ink-2); }
+  .c-test-head .pen { font-size: 19px; flex-shrink: 0; }
+  .c-test-code { display: block; margin: 0 0 8px; font: 12.5px/1.5 var(--font-mono); color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+  code.c-test-code { margin: 0; }
+  .r-mark { width: 20px; height: 20px; flex-shrink: 0; margin: 4px 0 0 auto; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-6deg); }
+  .r-pass { stroke: var(--tick); }
+  .r-fail { stroke: var(--red); }
+  .tick { width: 22px; height: 22px; flex-shrink: 0; margin-top: 3px; fill: none; stroke: var(--tick); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+`;

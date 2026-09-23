@@ -23,9 +23,9 @@ export interface MonacoEditor {
 type AnyMonaco = any;
 
 const SEVERITY_COLORS = {
-  error:      { squiggle: 'rgba(255,0,153,0.9)',   glyph: '#FF0099' },
-  warning:    { squiggle: 'rgba(245,158,11,0.9)',  glyph: '#F59E0B' },
-  suggestion: { squiggle: 'rgba(30,144,255,0.8)',  glyph: '#1E90FF' },
+  error:      { squiggle: 'rgba(200,16,46,0.9)',  glyph: '#C8102E' },
+  warning:    { squiggle: 'rgba(181,101,29,0.9)', glyph: '#B5651D' },
+  suggestion: { squiggle: 'rgba(47,91,183,0.8)',  glyph: '#2F5BB7' },
 };
 
 function toMonacoLanguageId(language: string): string {
@@ -72,56 +72,66 @@ export default function CodeEditor({
 
       monacoRef.current = monaco;
 
-      monaco.editor.defineTheme('coderev-neon', {
-        base: 'vs-dark',
+      // Ink on paper: syntax colour kept quiet so the red-pen marks stand out
+      monaco.editor.defineTheme('codemarker-paper', {
+        base: 'vs',
         inherit: true,
         rules: [
-          { token: 'comment',   foreground: '3D4B5C', fontStyle: 'italic' },
-          { token: 'keyword',   foreground: '1E90FF' },   // electric blue
-          { token: 'string',    foreground: '00FF85' },   // neon green
-          { token: 'number',    foreground: 'F59E0B' },
-          { token: 'type',      foreground: '00D4FF' },
-          { token: 'function',  foreground: 'FF0099' },   // hot pink for function names
-          { token: 'variable',  foreground: 'E2E8F0' },
-          { token: 'operator',  foreground: '6B7280' },
+          { token: 'comment',   foreground: '948F84', fontStyle: 'italic' },
+          { token: 'keyword',   foreground: '1D1C1A', fontStyle: 'bold' },
+          { token: 'string',    foreground: '4F6B3A' },
+          { token: 'number',    foreground: '7A4E2D' },
+          { token: 'type',      foreground: '3D4F7A' },
+          { token: 'function',  foreground: '1D1C1A' },
+          { token: 'variable',  foreground: '1D1C1A' },
+          { token: 'operator',  foreground: '57534B' },
         ],
         colors: {
-          'editor.background':                 '#0D0D0D',
-          'editor.foreground':                 '#E2E8F0',
-          'editor.lineHighlightBackground':    '#131313',
-          'editor.selectionBackground':        '#00FF8520',
-          'editorLineNumber.foreground':       '#2A2A2A',
-          'editorLineNumber.activeForeground': '#555555',
-          'editorGutter.background':           '#0D0D0D',
-          'editorCursor.foreground':           '#00FF85',
-          'editorIndentGuide.background1':     '#1A1A1A',
-          'editorWidget.background':           '#111111',
-          'editorWidget.border':               '#222222',
+          'editor.background':                 '#FBF9F4',
+          'editor.foreground':                 '#1D1C1A',
+          'editor.lineHighlightBackground':    '#F3EFE6',
+          'editor.lineHighlightBorder':        '#00000000',
+          'editor.selectionBackground':        '#C8102E22',
+          'editor.inactiveSelectionBackground':'#C8102E14',
+          'editorLineNumber.foreground':       '#C9C2B4',
+          'editorLineNumber.activeForeground': '#57534B',
+          'editorGutter.background':           '#FBF9F4',
+          'editorCursor.foreground':           '#C8102E',
+          'editorIndentGuide.background1':     '#EDE8DD',
+          'editorWidget.background':           '#FBF9F4',
+          'editorWidget.border':               '#DCD5C6',
+          'editorHoverWidget.background':      '#FBF9F4',
+          'editorHoverWidget.border':          '#DCD5C6',
           'scrollbar.shadow':                  '#00000000',
-          'scrollbarSlider.background':        '#00FF8515',
-          'scrollbarSlider.hoverBackground':   '#00FF8530',
-          'editor.findMatchBackground':        '#FF009940',
-          'editor.findMatchHighlightBackground': '#1E90FF25',
+          'scrollbarSlider.background':        '#DCD5C680',
+          'scrollbarSlider.hoverBackground':   '#948F8480',
+          'editor.findMatchBackground':        '#C8102E30',
+          'editor.findMatchHighlightBackground': '#2F5BB720',
         },
       });
 
       editorRef.current = monaco.editor.create(containerRef.current!, {
         value: code,
         language: toMonacoLanguageId(language),
-        theme: 'coderev-neon',
-        fontSize: 13,
-        fontFamily: 'var(--font-mono), "Kode Mono", "JetBrains Mono", monospace',
-        fontLigatures: true,
-        lineHeight: 22,
-        padding: { top: 20, bottom: 20 },
+        theme: 'codemarker-paper',
+        fontSize: 15,
+        fontFamily: 'var(--font-mono), "Courier Prime", "Courier New", monospace',
+        fontLigatures: false,
+        lineHeight: 26,
+        padding: { top: 26, bottom: 26 },
+        lineNumbersMinChars: 4,
+        glyphMargin: false,
+        renderWhitespace: 'none',
+        occurrencesHighlight: 'off',
+        selectionHighlight: false,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         renderLineHighlight: 'line',
         overviewRulerBorder: false,
         hideCursorInOverviewRuler: true,
         scrollbar: {
-          verticalScrollbarSize: 4,
-          horizontalScrollbarSize: 4,
+          verticalScrollbarSize: 8,
+          horizontalScrollbarSize: 8,
           alwaysConsumeMouseWheel: false,
         },
         smoothScrolling: true,
@@ -220,7 +230,7 @@ export default function CodeEditor({
             inlineClassName: `issue-inline-${issue.severity}`,
             overviewRuler: { color: colors.squiggle, position: monaco.editor.OverviewRulerLane.Right },
             zIndex: isActive ? 10 : 1,
-            hoverMessage: { value: `**${issue.severity.toUpperCase()}**: ${issue.title}\n\n${issue.description}` },
+            hoverMessage: { value: `**${issue.title}**\n\n${issue.description}` },
           },
         };
       });
@@ -244,29 +254,20 @@ export default function CodeEditor({
   return (
     <>
       <style>{`
-        /* Issue line backgrounds */
-        .issue-line-error      { background: rgba(255,0,153,0.06)  !important; }
-        .issue-line-warning    { background: rgba(245,158,11,0.05) !important; }
-        .issue-line-suggestion { background: rgba(30,144,255,0.05) !important; }
+        /* Marked lines: a faint wash, like a highlighter pen */
+        .issue-line-error      { background: rgba(200,16,46,0.06)  !important; }
+        .issue-line-warning    { background: rgba(181,101,29,0.07) !important; }
+        .issue-line-suggestion { background: rgba(47,91,183,0.06)  !important; }
 
-        /* Active line — neon left border glow */
-        .issue-line-active-error      {
-          background: rgba(255,0,153,0.12) !important;
-          box-shadow: inset 3px 0 0 #FF0099, inset 0 0 20px rgba(255,0,153,0.08);
-        }
-        .issue-line-active-warning    {
-          background: rgba(245,158,11,0.12) !important;
-          box-shadow: inset 3px 0 0 #F59E0B, inset 0 0 20px rgba(245,158,11,0.08);
-        }
-        .issue-line-active-suggestion {
-          background: rgba(30,144,255,0.1) !important;
-          box-shadow: inset 3px 0 0 #1E90FF, inset 0 0 20px rgba(30,144,255,0.07);
-        }
+        /* The line you're reading about gets a bracket in the margin */
+        .issue-line-active-error      { background: rgba(200,16,46,0.11) !important; box-shadow: inset 3px 0 0 #C8102E; }
+        .issue-line-active-warning    { background: rgba(181,101,29,0.12) !important; box-shadow: inset 3px 0 0 #B5651D; }
+        .issue-line-active-suggestion { background: rgba(47,91,183,0.10) !important; box-shadow: inset 3px 0 0 #2F5BB7; }
 
-        /* Inline squiggles */
-        .issue-inline-error      { border-bottom: 2px wavy rgba(255,0,153,0.8); }
-        .issue-inline-warning    { border-bottom: 2px wavy rgba(245,158,11,0.7); }
-        .issue-inline-suggestion { border-bottom: 1px dashed rgba(30,144,255,0.6); }
+        /* Pen underlines */
+        .issue-inline-error      { text-decoration: underline wavy rgba(200,16,46,0.75); text-underline-offset: 5px; }
+        .issue-inline-warning    { text-decoration: underline wavy rgba(181,101,29,0.7); text-underline-offset: 5px; }
+        .issue-inline-suggestion { text-decoration: underline dashed rgba(47,91,183,0.6); text-underline-offset: 5px; }
       `}</style>
       <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />
     </>

@@ -38,6 +38,16 @@ export type Issue = {
   cwe?: string;
   // Optional language/framework specific test guidance.
   testSuggestion?: string;
+  // A plain JavaScript expression that is true once the issue is fixed and false
+  // (or throws) while it's still there. Run after the whole file in the sandbox.
+  // Empty when the issue can't be observed at runtime (types, style, security posture).
+  check?: string;
+};
+
+export type CheckResult = {
+  status: 'pass' | 'fail';
+  // Why it failed, when the check threw.
+  note?: string;
 };
 
 export type ReviewResult = {
@@ -50,4 +60,15 @@ export type ReviewResult = {
   testFramework?: string;
   generatedTests?: string;
   securitySummary?: string;
+  fixedFullCode?: string;
+  // Things to try in Scratch work. For JS/TS/Python "code" is an expression that
+  // gets evaluated; for C++/C#/Java it's a snippet to paste into the user's project.
+  examples?: TryItem[];
+  edgeCases?: TryItem[];
+};
+
+export type TryItem = {
+  // What the call is doing, in plain English
+  label: string;
+  code: string;
 };

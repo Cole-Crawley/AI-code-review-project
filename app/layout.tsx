@@ -1,37 +1,46 @@
 import type { Metadata, Viewport } from 'next';
-import { Oxanium, Inter, Kode_Mono } from 'next/font/google';
+import { Newsreader, Hanken_Grotesk, Courier_Prime, Nanum_Pen_Script } from 'next/font/google';
+import './globals.css';
 
-const display = Oxanium({
+// Serif for headings and prose, like printed exam instructions
+const serif = Newsreader({
   subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['600', '700', '800'],
+  variable: '--font-serif',
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
   display: 'swap',
-  preload: true,
 });
 
-const sans = Inter({
+// Small interface text
+const sans = Hanken_Grotesk({
   subsets: ['latin'],
   variable: '--font-sans',
-  weight: ['400', '500', '600', '700'],
+  weight: ['400', '500', '600'],
   display: 'swap',
-  preload: true,
 });
 
-const mono = Kode_Mono({
+// Code reads as if it were typed onto the page
+const mono = Courier_Prime({
   subsets: ['latin'],
   variable: '--font-mono',
-  weight: ['400', '500', '600', '700'],
+  weight: ['400', '700'],
   display: 'swap',
-  preload: true,
+});
+
+// The examiner's red pen, used only for margin notes
+const pen = Nanum_Pen_Script({
+  subsets: ['latin'],
+  variable: '--font-pen',
+  weight: '400',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'CodeRev — AI Code Review',
-  description: 'Instant AI-powered code review for TypeScript/JavaScript, Python, C++, C#, and Java. Get line-by-line feedback on bugs, security issues, and best practices.',
-  keywords: ['code review', 'AI', 'TypeScript', 'JavaScript', 'Python', 'C++', 'C#', 'Java', 'linting', 'static analysis'],
+  title: 'CodeMarker',
+  description: 'Hand in your code and get it back marked: line-by-line feedback on bugs, security and style for TypeScript, JavaScript, Python, C++, C# and Java.',
   openGraph: {
-    title: 'CodeRev — AI Code Review',
-    description: 'Instant AI-powered code review for multiple languages.',
+    title: 'CodeMarker',
+    description: 'Hand in your code and get it back marked.',
     type: 'website',
   },
 };
@@ -39,17 +48,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0D0D0D',
+  themeColor: '#EDE8DD',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning prevents React hydration errors caused by browser
     // extensions injecting attributes (data-extension-installed, etc.) onto <html>.
-    <html lang="en" suppressHydrationWarning className={`${display.variable} ${sans.variable} ${mono.variable}`}>
-      <body style={{ margin: 0, padding: 0, background: '#0D0D0D' }}>
-        {children}
-      </body>
+    <html lang="en" suppressHydrationWarning className={`${serif.variable} ${sans.variable} ${mono.variable} ${pen.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }
