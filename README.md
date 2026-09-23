@@ -68,8 +68,8 @@ Each test snippet runs on its own in a sandboxed iframe with its own error handl
 ## Running it locally
 
 ```bash
-git clone https://github.com/Cole-Crawley/AI-code-review-project.git
-cd AI-code-review-project
+git clone https://github.com/Cole-Crawley/codemarker.git
+cd codemarker
 npm install
 ```
 
