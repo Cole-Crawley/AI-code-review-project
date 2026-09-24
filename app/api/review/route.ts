@@ -321,6 +321,17 @@ Return this exact format:
         { status: 429 },
       );
     }
+    // Hitting the account's monthly spend limit (or running out of credit) comes back
+    // as a 400 with one of these messages. Say so plainly instead of "try again".
+    if (err instanceof Anthropic.APIError && err.status === 400 && /usage limit|credit balance/i.test(err.message)) {
+      return NextResponse.json(
+        {
+          error: 'demo_limit',
+          message: "The live demo has used up this month's marking allowance. It resets at the start of next month.",
+        },
+        { status: 503 },
+      );
+    }
     console.error('[review] Claude request failed:', err);
   }
 
