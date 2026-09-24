@@ -120,4 +120,4 @@ After applying a fix, the code changes, the test re-runs and the grade goes up:
 
 ![After a fix](docs/codemarker-fixed.webp)
 
-*Made by [Cole Crawley](https://colecrawley.vercel.app).*
+*Made by [Cole Crawley](https://colecrawley.com).*
